@@ -6,17 +6,14 @@
     <title>Import House | Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <style>
-        body { font-family: sans-serif; background-color: #f3f4f6; }
-        .hidden { display: none; }
-    </style>
+    <style> body { font-family: sans-serif; background-color: #f3f4f6; } .hidden { display: none; } </style>
 </head>
-<body class="text-gray-900">
+<body class="text-gray-900 pb-20">
 
     <div id="login-screen" class="h-screen flex items-center justify-center p-6">
         <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
             <h1 class="text-2xl font-black mb-2">Admin Panel</h1>
-            <p class="text-gray-500 mb-6">Login to view orders</p>
+            <p class="text-gray-500 mb-6">Login to manage store</p>
             <form onsubmit="handleLogin(event)" class="space-y-4">
                 <input type="email" id="email" placeholder="Admin Email" class="w-full p-3 border rounded-lg outline-none" required>
                 <input type="password" id="password" placeholder="Password" class="w-full p-3 border rounded-lg outline-none" required>
@@ -25,34 +22,53 @@
         </div>
     </div>
 
-    <div id="dashboard-screen" class="hidden min-h-screen pb-20">
+    <div id="dashboard-screen" class="hidden min-h-screen">
         <header class="bg-black text-white p-4 sticky top-0 z-50 flex justify-between items-center shadow-md">
-            <h1 class="font-bold text-lg">Orders Feed</h1>
+            <h1 class="font-bold text-lg">Import House Admin</h1>
             <button onclick="logout()" class="text-xs bg-red-600 px-3 py-1 rounded">Logout</button>
         </header>
 
-        <div class="grid grid-cols-2 gap-4 p-4">
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                <p class="text-gray-500 text-xs uppercase font-bold">Total Orders</p>
-                <h2 class="text-3xl font-black" id="total-orders">0</h2>
+        <div class="flex p-4 gap-4">
+            <button onclick="switchTab('orders')" id="tab-orders" class="flex-1 py-2 bg-black text-white rounded-lg font-bold">Orders</button>
+            <button onclick="switchTab('products')" id="tab-products" class="flex-1 py-2 bg-gray-200 text-gray-500 rounded-lg font-bold">Add Stock</button>
+        </div>
+
+        <div id="view-orders">
+            <div class="grid grid-cols-2 gap-4 px-4 mb-4">
+                <div class="bg-white p-4 rounded-xl border border-gray-200"><p class="text-gray-500 text-xs uppercase font-bold">Orders</p><h2 class="text-3xl font-black" id="total-orders">0</h2></div>
+                <div class="bg-white p-4 rounded-xl border border-gray-200"><p class="text-gray-500 text-xs uppercase font-bold">Revenue</p><h2 class="text-3xl font-black text-green-600" id="total-revenue">₹0</h2></div>
             </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                <p class="text-gray-500 text-xs uppercase font-bold">Revenue</p>
-                <h2 class="text-3xl font-black text-green-600" id="total-revenue">₹0</h2>
+            <div id="orders-list" class="px-4 space-y-4">
+                <p class="text-center text-gray-400 mt-10">Loading orders...</p>
             </div>
         </div>
 
-        <div id="orders-list" class="px-4 space-y-4">
-            <p class="text-center text-gray-400 mt-10">Waiting for orders...</p>
+        <div id="view-products" class="hidden px-4">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <h2 class="text-xl font-black mb-4">Add New Product</h2>
+                <form onsubmit="addProduct(event)" class="space-y-4">
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Product Name</label><input id="prod-name" type="text" class="w-full p-3 border rounded-lg outline-none" required placeholder="e.g. Nike Air Max"></div>
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Brand</label><input id="prod-brand" type="text" class="w-full p-3 border rounded-lg outline-none" required placeholder="e.g. Nike"></div>
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Price (₹)</label><input id="prod-price" type="number" class="w-full p-3 border rounded-lg outline-none" required placeholder="4999"></div>
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Image Link</label><input id="prod-img" type="url" class="w-full p-3 border rounded-lg outline-none" required placeholder="https://...">
+                    <p class="text-[10px] text-gray-400 mt-1">Tip: Right click any image online -> Copy Image Address</p></div>
+                    <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700">Add to Store</button>
+                </form>
+            </div>
+            
+            <div class="mt-8">
+                <h3 class="font-bold mb-4">Live Inventory</h3>
+                <div id="products-list" class="space-y-3"></div>
+            </div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-        import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-        // --- ⚠️ PASTE YOUR SAME FIREBASE KEYS HERE ⚠️ ---
+        // --- ⚠️ PASTE YOUR KEYS HERE ⚠️ ---
         const firebaseConfig = {
             apiKey: "AIzaSyAVAhzIDoiFiGxHN0z2ze9TSocB3Cbb6i8",
   authDomain: "shop-clothes-aded9.firebaseapp.com",
@@ -66,108 +82,119 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- 1. AUTHENTICATION ---
+        // Make functions global
+        window.switchTab = (tab) => {
+            const ordersBtn = document.getElementById('tab-orders');
+            const prodsBtn = document.getElementById('tab-products');
+            const ordersView = document.getElementById('view-orders');
+            const prodsView = document.getElementById('view-products');
+
+            if(tab === 'orders') {
+                ordersBtn.className = "flex-1 py-2 bg-black text-white rounded-lg font-bold";
+                prodsBtn.className = "flex-1 py-2 bg-gray-200 text-gray-500 rounded-lg font-bold";
+                ordersView.classList.remove('hidden');
+                prodsView.classList.add('hidden');
+            } else {
+                prodsBtn.className = "flex-1 py-2 bg-black text-white rounded-lg font-bold";
+                ordersBtn.className = "flex-1 py-2 bg-gray-200 text-gray-500 rounded-lg font-bold";
+                prodsView.classList.remove('hidden');
+                ordersView.classList.add('hidden');
+            }
+        };
+
+        window.addProduct = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.innerText = "Adding...";
+            
+            try {
+                await addDoc(collection(db, "products"), {
+                    name: document.getElementById('prod-name').value,
+                    brand: document.getElementById('prod-brand').value,
+                    price: Number(document.getElementById('prod-price').value),
+                    img: document.getElementById('prod-img').value,
+                    timestamp: serverTimestamp()
+                });
+                alert("Product Added!");
+                e.target.reset();
+            } catch (err) { alert(err.message); }
+            btn.innerText = "Add to Store";
+        };
+
+        window.deleteProduct = async (id) => {
+            if(confirm("Delete this product from the website?")) {
+                await deleteDoc(doc(db, "products", id));
+            }
+        };
+
         window.handleLogin = async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
-            const pass = document.getElementById('password').value;
-            try {
-                await signInWithEmailAndPassword(auth, email, pass);
-            } catch (error) { alert("Login failed: " + error.message); }
-        }
+            try { await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value); } 
+            catch (error) { alert("Login failed: " + error.message); }
+        };
 
         window.logout = () => signOut(auth);
+        window.updateStatus = async (id, status) => { await updateDoc(doc(db, "orders", id), { status: status }); };
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('dashboard-screen').classList.remove('hidden');
-                startOrderListener();
+                
+                // Listener 1: Orders
+                onSnapshot(query(collection(db, "orders"), orderBy("timestamp", "desc")), (snapshot) => {
+                    const list = document.getElementById('orders-list');
+                    list.innerHTML = "";
+                    let count = 0, revenue = 0;
+                    if(snapshot.empty) list.innerHTML = '<p class="text-center text-gray-400">No orders yet.</p>';
+                    
+                    snapshot.forEach((d) => {
+                        const o = d.data();
+                        count++; revenue += o.totalAmount;
+                        // Status Color
+                        let color = o.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : (o.status === 'Shipped' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800');
+                        
+                        list.innerHTML += `
+                            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
+                                <div class="flex justify-between mb-2">
+                                    <h3 class="font-bold">${o.customer.firstName} ${o.customer.lastName}</h3>
+                                    <span class="px-2 py-1 rounded text-xs font-bold ${color}">${o.status}</span>
+                                </div>
+                                <div class="text-sm text-gray-500 mb-3">${o.items.map(i => i.name).join(', ')}</div>
+                                <div class="flex justify-between font-bold border-t pt-3 mt-3"><span>Total</span><span>₹${o.totalAmount}</span></div>
+                                <div class="flex gap-2 mt-4">
+                                    ${o.status === 'Pending' ? `<button onclick="updateStatus('${d.id}', 'Shipped')" class="flex-1 bg-black text-white py-2 rounded-lg text-xs">Ship</button>` : ''}
+                                    ${o.status === 'Shipped' ? `<button onclick="updateStatus('${d.id}', 'Delivered')" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-xs">Deliver</button>` : ''}
+                                </div>
+                            </div>`;
+                    });
+                    document.getElementById('total-orders').innerText = count;
+                    document.getElementById('total-revenue').innerText = "₹" + revenue.toLocaleString();
+                });
+
+                // Listener 2: Products
+                onSnapshot(query(collection(db, "products"), orderBy("timestamp", "desc")), (snapshot) => {
+                    const list = document.getElementById('products-list');
+                    list.innerHTML = "";
+                    snapshot.forEach((d) => {
+                        const p = d.data();
+                        list.innerHTML += `
+                            <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200">
+                                <img src="${p.img}" class="w-12 h-12 rounded object-cover">
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-sm">${p.name}</h4>
+                                    <p class="text-xs text-gray-500">₹${p.price}</p>
+                                </div>
+                                <button onclick="deleteProduct('${d.id}')" class="text-red-500"><i class="ph ph-trash"></i></button>
+                            </div>`;
+                    });
+                });
+
             } else {
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('dashboard-screen').classList.add('hidden');
             }
         });
-
-        // --- 2. REAL-TIME ORDER LISTENER ---
-        function startOrderListener() {
-            const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
-            
-            // This runs every time the database changes instantly
-            onSnapshot(q, (snapshot) => {
-                const list = document.getElementById('orders-list');
-                list.innerHTML = ""; // Clear list
-                
-                let count = 0;
-                let revenue = 0;
-
-                if(snapshot.empty) {
-                    list.innerHTML = '<p class="text-center text-gray-400 mt-10">No orders found.</p>';
-                    return;
-                }
-
-                snapshot.forEach((docSnap) => {
-                    const order = docSnap.data();
-                    const orderId = docSnap.id;
-                    count++;
-                    revenue += order.totalAmount;
-
-                    // Create Card HTML
-                    const card = document.createElement('div');
-                    card.className = "bg-white p-5 rounded-2xl shadow-sm border border-gray-200 relative";
-                    
-                    // Status Color Logic
-                    let statusColor = "bg-yellow-100 text-yellow-700";
-                    if(order.status === "Shipped") statusColor = "bg-blue-100 text-blue-700";
-                    if(order.status === "Delivered") statusColor = "bg-green-100 text-green-700";
-
-                    // Items List
-                    let itemsHtml = order.items.map(i => `<div class="text-sm text-gray-600 flex justify-between"><span>${i.name}</span><span>₹${i.price}</span></div>`).join('');
-
-                    card.innerHTML = `
-                        <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h3 class="font-bold text-lg">${order.customer.firstName} ${order.customer.lastName}</h3>
-                                <p class="text-xs text-gray-400">ID: ${orderId.slice(0,6)}</p>
-                            </div>
-                            <span class="px-2 py-1 rounded text-xs font-bold ${statusColor}">${order.status}</span>
-                        </div>
-                        
-                        <div class="border-t border-b border-gray-100 py-3 my-3 space-y-1">
-                            ${itemsHtml}
-                        </div>
-                        
-                        <div class="flex justify-between font-bold text-lg mb-3">
-                            <span>Total</span>
-                            <span>₹${order.totalAmount.toLocaleString()}</span>
-                        </div>
-
-                        <div class="bg-gray-50 p-3 rounded-lg text-sm text-gray-600 mb-4">
-                            <p class="font-bold mb-1">📍 Delivery Address:</p>
-                            ${order.customer.address}, ${order.customer.city} - ${order.customer.zip}<br>
-                            📞 ${order.customer.phone}
-                        </div>
-
-                        <div class="flex gap-2">
-                            ${order.status === 'Pending' ? `<button onclick="updateStatus('${orderId}', 'Shipped')" class="flex-1 bg-black text-white py-2 rounded-lg text-sm font-bold">Mark Shipped</button>` : ''}
-                            ${order.status === 'Shipped' ? `<button onclick="updateStatus('${orderId}', 'Delivered')" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-bold">Mark Delivered</button>` : ''}
-                            <a href="tel:${order.customer.phone}" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-600"><i class="ph ph-phone"></i></a>
-                        </div>
-                    `;
-                    list.appendChild(card);
-                });
-
-                document.getElementById('total-orders').innerText = count;
-                document.getElementById('total-revenue').innerText = "₹" + revenue.toLocaleString();
-            });
-        }
-
-        // --- 3. UPDATE ORDER STATUS ---
-        window.updateStatus = async (id, newStatus) => {
-            const orderRef = doc(db, "orders", id);
-            await updateDoc(orderRef, { status: newStatus });
-        }
     </script>
 </body>
-
 </html>
